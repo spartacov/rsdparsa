@@ -3,7 +3,7 @@ use std::net::IpAddr;
 
 use SdpLine;
 use error::SdpParserError;
-use network::{SdpAddrType, SdpNetType, parse_nettype, parse_addrtype, parse_unicast_addr, parse_unicast_addr_unknown_type};
+use network::{SdpNetType, parse_nettype, parse_addrtype, parse_unicast_addr};
 
 #[derive(Clone)]
 pub enum SdpAttributeType {
@@ -89,7 +89,7 @@ impl fmt::Display for SdpAttributeType {
 #[derive(Clone)]
 enum SdpAttributeCandidateTransport {
     Udp,
-    Tcp
+    Tcp,
 }
 
 #[derive(Clone)]
@@ -97,14 +97,14 @@ enum SdpAttributeCandidateType {
     Host,
     Srflx,
     Prflx,
-    Relay
+    Relay,
 }
 
 #[derive(Clone)]
 enum SdpAttributeCandidateTcpType {
     Active,
     Passive,
-    Simultaneous
+    Simultaneous,
 }
 
 #[derive(Clone)]
@@ -118,13 +118,18 @@ struct SdpAttributeCandidate {
     c_type: SdpAttributeCandidateType,
     raddr: Option<IpAddr>,
     rport: Option<u32>,
-    tcp_type: Option<SdpAttributeCandidateTcpType>
+    tcp_type: Option<SdpAttributeCandidateTcpType>,
 }
 
 impl SdpAttributeCandidate {
-    pub fn new(fd: String, comp: u32, transp: SdpAttributeCandidateTransport,
-               prio: u64, addr: IpAddr, port: u32,
-               ctyp: SdpAttributeCandidateType) -> SdpAttributeCandidate {
+    pub fn new(fd: String,
+               comp: u32,
+               transp: SdpAttributeCandidateTransport,
+               prio: u64,
+               addr: IpAddr,
+               port: u32,
+               ctyp: SdpAttributeCandidateType)
+               -> SdpAttributeCandidate {
         SdpAttributeCandidate {
             foundation: fd,
             component: comp,
@@ -135,7 +140,7 @@ impl SdpAttributeCandidate {
             c_type: ctyp,
             raddr: None,
             rport: None,
-            tcp_type: None
+            tcp_type: None,
         }
     }
 
@@ -155,7 +160,7 @@ impl SdpAttributeCandidate {
 #[derive(Clone)]
 struct SdpAttributeSimulcastId {
     id: String,
-    paused: bool
+    paused: bool,
 }
 
 impl SdpAttributeSimulcastId {
@@ -163,12 +168,12 @@ impl SdpAttributeSimulcastId {
         if idstr.starts_with('~') {
             SdpAttributeSimulcastId {
                 id: idstr[1..].to_string(),
-                paused: true
+                paused: true,
             }
         } else {
             SdpAttributeSimulcastId {
                 id: idstr,
-                paused: false
+                paused: false,
             }
         }
     }
@@ -176,16 +181,17 @@ impl SdpAttributeSimulcastId {
 
 #[derive(Clone)]
 struct SdpAttributeSimulcastAlternatives {
-    ids: Vec<SdpAttributeSimulcastId>
+    ids: Vec<SdpAttributeSimulcastId>,
 }
 
 impl SdpAttributeSimulcastAlternatives {
     pub fn new(idlist: String) -> SdpAttributeSimulcastAlternatives {
         SdpAttributeSimulcastAlternatives {
-            ids: idlist.split(',')
-                 .map(|x| x.to_string())
-                 .map(SdpAttributeSimulcastId::new)
-                 .collect()
+            ids: idlist
+                .split(',')
+                .map(|x| x.to_string())
+                .map(SdpAttributeSimulcastId::new)
+                .collect(),
         }
     }
 }
@@ -193,22 +199,21 @@ impl SdpAttributeSimulcastAlternatives {
 #[derive(Clone)]
 struct SdpAttributeSimulcast {
     send: Vec<SdpAttributeSimulcastAlternatives>,
-    receive: Vec<SdpAttributeSimulcastAlternatives>
+    receive: Vec<SdpAttributeSimulcastAlternatives>,
 }
 
 impl SdpAttributeSimulcast {
-    fn parse_ids(&mut self,
-                 direction: SdpAttributeDirection,
-                 idlist: String) {
-        let list = idlist.split(';')
-                   .map(|x| x.to_string())
-                   .map(SdpAttributeSimulcastAlternatives::new)
-                   .collect();
+    fn parse_ids(&mut self, direction: SdpAttributeDirection, idlist: String) {
+        let list = idlist
+            .split(';')
+            .map(|x| x.to_string())
+            .map(SdpAttributeSimulcastAlternatives::new)
+            .collect();
         // TODO prevent over-writing existing values
         match direction {
             SdpAttributeDirection::Recvonly => self.receive = list,
             SdpAttributeDirection::Sendonly => self.send = list,
-            _ => ()
+            _ => (),
         }
     }
 }
@@ -217,8 +222,7 @@ impl SdpAttributeSimulcast {
 struct SdpAttributeRtcp {
     port: u32,
     nettype: Option<SdpNetType>,
-    addrtype: Option<SdpAddrType>,
-    unicast_addr: Option<IpAddr>
+    unicast_addr: Option<IpAddr>,
 }
 
 impl SdpAttributeRtcp {
@@ -226,8 +230,7 @@ impl SdpAttributeRtcp {
         SdpAttributeRtcp {
             port: port,
             nettype: None,
-            addrtype: None,
-            unicast_addr: None
+            unicast_addr: None,
         }
     }
 
@@ -235,8 +238,7 @@ impl SdpAttributeRtcp {
         self.nettype = Some(nt)
     }
 
-    fn set_addr(&mut self, at: SdpAddrType, addr: IpAddr) {
-        self.addrtype = Some(at);
+    fn set_addr(&mut self, addr: IpAddr) {
         self.unicast_addr = Some(addr)
     }
 }
@@ -245,7 +247,7 @@ impl SdpAttributeRtcp {
 struct SdpAttributeRtcpFb {
     payload_type: u32,
     // TODO parse this and use an enum instead?
-    feedback_type: String
+    feedback_type: String,
 }
 
 #[derive(Clone)]
@@ -259,26 +261,26 @@ enum SdpAttributeDirection {
 struct SdpAttributeExtmap {
     id: u32,
     direction: Option<SdpAttributeDirection>,
-    url: String
+    url: String,
 }
 
 #[derive(Clone)]
 struct SdpAttributeFmtp {
     payload_type: u32,
-    tokens: Vec<String>
+    tokens: Vec<String>,
 }
 
 #[derive(Clone)]
 struct SdpAttributeFingerprint {
     // TODO turn the supported hash algorithms into an enum?
     hash_algorithm: String,
-    fingerprint: String
+    fingerprint: String,
 }
 
 #[derive(Clone)]
 struct SdpAttributeSctpmap {
     port: u32,
-    channels: u32
+    channels: u32,
 }
 
 #[derive(Clone)]
@@ -289,19 +291,19 @@ enum SdpAttributeGroupSemantic {
     AlternateNetworkAddressType,
     ForwardErrorCorrection,
     DecodingDependency,
-    Bundle
+    Bundle,
 }
 
 #[derive(Clone)]
 struct SdpAttributeGroup {
     semantics: SdpAttributeGroupSemantic,
-    tags: Vec<String>
+    tags: Vec<String>,
 }
 
 #[derive(Clone)]
 struct SdpAttributeMsid {
     id: String,
-    appdata: Option<String>
+    appdata: Option<String>,
 }
 
 #[derive(Clone)]
@@ -309,15 +311,16 @@ struct SdpAttributeRtpmap {
     payload_type: u32,
     codec_name: String,
     frequency: Option<u32>,
-    channels: Option<u32>
+    channels: Option<u32>,
 }
 
 impl SdpAttributeRtpmap {
     pub fn new(pt: u32, codec: String) -> SdpAttributeRtpmap {
-        SdpAttributeRtpmap { payload_type: pt,
-                             codec_name: codec,
-                             frequency: None,
-                             channels: None
+        SdpAttributeRtpmap {
+            payload_type: pt,
+            codec_name: codec,
+            frequency: None,
+            channels: None,
         }
     }
 
@@ -335,21 +338,22 @@ enum SdpAttributeSetup {
     Active,
     Actpass,
     Holdconn,
-    Passive
+    Passive,
 }
 
 #[derive(Clone)]
 struct SdpAttributeSsrc {
     id: u32,
     attribute: Option<String>,
-    value: Option<String>
+    value: Option<String>,
 }
 
 impl SdpAttributeSsrc {
     pub fn new(id: u32) -> SdpAttributeSsrc {
-        SdpAttributeSsrc { id: id,
-                           attribute: None,
-                           value: None
+        SdpAttributeSsrc {
+            id: id,
+            attribute: None,
+            value: None,
         }
     }
 
@@ -366,35 +370,36 @@ impl SdpAttributeSsrc {
 
 #[derive(Clone)]
 enum SdpAttributeValue {
-    Str {value: String},
-    Int {value: u32},
-    Vector {value: Vec<String>},
-    Candidate {value: SdpAttributeCandidate},
-    Extmap {value: SdpAttributeExtmap},
-    Fingerprint {value: SdpAttributeFingerprint},
-    Fmtp {value: SdpAttributeFmtp},
-    Group {value: SdpAttributeGroup},
-    Msid {value: SdpAttributeMsid},
-    Rtpmap {value: SdpAttributeRtpmap},
-    Rtcp {value: SdpAttributeRtcp},
-    Rtcpfb {value: SdpAttributeRtcpFb},
-    Sctpmap {value: SdpAttributeSctpmap},
-    Setup {value: SdpAttributeSetup},
-    Simulcast {value: SdpAttributeSimulcast},
-    Ssrc {value: SdpAttributeSsrc},
+    Str { value: String },
+    Int { value: u32 },
+    Vector { value: Vec<String> },
+    Candidate { value: SdpAttributeCandidate },
+    Extmap { value: SdpAttributeExtmap },
+    Fingerprint { value: SdpAttributeFingerprint },
+    Fmtp { value: SdpAttributeFmtp },
+    Group { value: SdpAttributeGroup },
+    Msid { value: SdpAttributeMsid },
+    Rtpmap { value: SdpAttributeRtpmap },
+    Rtcp { value: SdpAttributeRtcp },
+    Rtcpfb { value: SdpAttributeRtcpFb },
+    Sctpmap { value: SdpAttributeSctpmap },
+    Setup { value: SdpAttributeSetup },
+    Simulcast { value: SdpAttributeSimulcast },
+    Ssrc { value: SdpAttributeSsrc },
 }
 
 #[derive(Clone)]
 pub struct SdpAttribute {
     name: SdpAttributeType,
-    value: Option<SdpAttributeValue>
+    value: Option<SdpAttributeValue>,
 }
 
 impl SdpAttribute {
     pub fn new(t: SdpAttributeType) -> SdpAttribute {
-        SdpAttribute { name: t,
-                       value: None
-                     }
+        SdpAttribute {
+            name: t,
+            value: None,
+        }
     }
 
     pub fn parse_value(&mut self, v: &str) -> Result<(), SdpParserError> {
@@ -449,7 +454,7 @@ impl SdpAttribute {
                         line: v.to_string()})
                 };
                 let priority = try!(tokens[3].parse::<u64>());
-                let address = try!(parse_unicast_addr_unknown_type(tokens[4]));
+                let address = try!(parse_unicast_addr(tokens[4]));
                 let port = try!(tokens[5].parse::<u32>());
                 if port > 65535 {
                     return Err(SdpParserError::ParserLineError{
@@ -483,7 +488,7 @@ impl SdpAttribute {
                     while tokens.len() > index + 1 {
                         match tokens[index].to_lowercase().as_ref() {
                             "raddr" => {
-                                let addr = try!(parse_unicast_addr_unknown_type(tokens[index + 1]));
+                                let addr = try!(parse_unicast_addr(tokens[index + 1]));
                                 cand.set_remote_address(addr);
                                 index += 2;
                             },
@@ -658,9 +663,9 @@ impl SdpAttribute {
                                         message: "Rtcp attribute is missing ip address token".to_string(),
                                         line: v.to_string()}),
                                     Some(x) =>
-                                        try!(parse_unicast_addr(&addrtype, x)),
+                                        try!(parse_unicast_addr(x)),
                                 };
-                                rtcp.set_addr(addrtype, addr);
+                                rtcp.set_addr(addr);
                             },
                         };
                     },
@@ -853,9 +858,12 @@ pub fn parse_attribute(value: &str) -> Result<SdpLine, SdpParserError> {
         "simulcast" => SdpAttributeType::Simulcast,
         "ssrc" => SdpAttributeType::Ssrc,
         "ssrc-group" => SdpAttributeType::SsrcGroup,
-        _ => return Err(SdpParserError::ParserUnsupported {
-              message: "unsupported attribute value".to_string(),
-              line: name.to_string() }),
+        _ => {
+            return Err(SdpParserError::ParserUnsupported {
+                           message: "unsupported attribute value".to_string(),
+                           line: name.to_string(),
+                       })
+        }
     };
     let mut attr = SdpAttribute::new(attrtype);
     try!(attr.parse_value(val.trim()));
@@ -869,7 +877,8 @@ pub fn parse_attribute(value: &str) -> Result<SdpLine, SdpParserError> {
 #[test]
 fn test_parse_attribute_candidate() {
     assert!(parse_attribute("candidate:0 1 UDP 2122252543 172.16.156.106 49760 typ host").is_ok());
-    assert!(parse_attribute("candidate:foo 1 UDP 2122252543 172.16.156.106 49760 typ host").is_ok());
+    assert!(parse_attribute("candidate:foo 1 UDP 2122252543 172.16.156.106 49760 typ host")
+                .is_ok());
     assert!(parse_attribute("candidate:0 1 TCP 2122252543 172.16.156.106 49760 typ host").is_ok());
     assert!(parse_attribute("candidate:0 1 TCP 2122252543 ::1 49760 typ host").is_ok());
     assert!(parse_attribute("candidate:0 1 UDP 2122252543 172.16.156.106 49760 typ srflx").is_ok());
@@ -882,12 +891,14 @@ fn test_parse_attribute_candidate() {
     assert!(parse_attribute("candidate:1 1 TCP 1685987071 24.23.204.141 54609 typ srflx raddr 192.168.1.4 rport 61665 tcptype passive").is_ok());
 
     assert!(parse_attribute("candidate:0 1 UDP 2122252543 172.16.156.106 49760 typ").is_err());
-    assert!(parse_attribute("candidate:0 foo UDP 2122252543 172.16.156.106 49760 typ host").is_err());
+    assert!(parse_attribute("candidate:0 foo UDP 2122252543 172.16.156.106 49760 typ host")
+                .is_err());
     assert!(parse_attribute("candidate:0 1 FOO 2122252543 172.16.156.106 49760 typ host").is_err());
     assert!(parse_attribute("candidate:0 1 UDP foo 172.16.156.106 49760 typ host").is_err());
     assert!(parse_attribute("candidate:0 1 UDP 2122252543 172.16.156 49760 typ host").is_err());
     assert!(parse_attribute("candidate:0 1 UDP 2122252543 172.16.156.106 70000 typ host").is_err());
-    assert!(parse_attribute("candidate:0 1 UDP 2122252543 172.16.156.106 49760 type host").is_err());
+    assert!(parse_attribute("candidate:0 1 UDP 2122252543 172.16.156.106 49760 type host")
+                .is_err());
     assert!(parse_attribute("candidate:0 1 UDP 2122252543 172.16.156.106 49760 typ fost").is_err());
     assert!(parse_attribute("candidate:1 1 UDP 1685987071 24.23.204.141 54609 typ srflx raddr 192.168.1 rport 61665").is_err());
     assert!(parse_attribute("candidate:1 1 UDP 1685987071 24.23.204.141 54609 typ srflx raddr 192.168.1.4 rport 70000").is_err());
@@ -900,8 +911,10 @@ fn test_parse_attribute_end_of_candidates() {
 
 #[test]
 fn test_parse_attribute_extmap() {
-    assert!(parse_attribute("extmap:1/sendonly urn:ietf:params:rtp-hdrext:ssrc-audio-level").is_ok());
-    assert!(parse_attribute("extmap:3 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time").is_ok());
+    assert!(parse_attribute("extmap:1/sendonly urn:ietf:params:rtp-hdrext:ssrc-audio-level")
+                .is_ok());
+    assert!(parse_attribute("extmap:3 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time")
+                .is_ok());
 }
 
 #[test]
@@ -1060,7 +1073,8 @@ fn test_parse_attribute_simulcast() {
 fn test_parse_attribute_ssrc() {
     assert!(parse_attribute("ssrc:2655508255").is_ok());
     assert!(parse_attribute("ssrc:2655508255 foo").is_ok());
-    assert!(parse_attribute("ssrc:2655508255 cname:{735484ea-4f6c-f74a-bd66-7425f8476c2e}").is_ok());
+    assert!(parse_attribute("ssrc:2655508255 cname:{735484ea-4f6c-f74a-bd66-7425f8476c2e}")
+                .is_ok());
 
     assert!(parse_attribute("ssrc:").is_err());
     assert!(parse_attribute("ssrc:foo").is_err());
